@@ -1,6 +1,7 @@
+use std::fmt::Display;
 use rand::random;
 use std::hint::black_box;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 const OVERHEAD_PICOS: u128 = 1755;
 
@@ -31,6 +32,7 @@ fn sample<T>(samples: u32, first_t: T, mut f: impl FnMut(T) -> T) -> u128 {
     (end - start).as_nanos() * 1000
 }
 
+#[must_use]
 pub(crate) struct BenchmarkStatistics {
     outliers: usize,
     min: u128,
@@ -70,6 +72,12 @@ impl BenchmarkStatistics {
         println!("avg: {:>3}.{:0>3} ns", self.avg / 1000, self.avg % 1000);
         println!("std: {:>3}.{:0>3} ns", self.std / 1000, self.std % 1000);
     }
+
+    pub(crate) fn report_as(&self, name: impl Display) {
+        println!("# {name}");
+        self.report();
+        println!();
+    }
 }
 
 fn benchmark_with_counts<T>(
@@ -93,11 +101,16 @@ fn choose_sample_count<T>(
     mut t: impl FnMut() -> T,
     mut f: impl FnMut(T) -> T,
 ) -> u32 {
-    let mut samples = 10;
+    let mut samples = 1;
 
     for _ in 0..10 {
         let picos = sample(samples, t(), &mut f);
         let scale = (preferred_picos as f64 / picos as f64).min(1000.0);
+        if samples as f64 * scale < 5.0 {
+            samples = 5;
+            println!("estimated time to collect samples: {:?}", Duration::from_nanos_u128(samples as u128 * picos / 1000));
+            break;
+        }
         samples = (samples as f64 * scale) as u32;
     }
 

@@ -1,8 +1,6 @@
-use crate::benchmark::benchmark;
-use rand::random;
-
 mod benchmark;
+mod aes;
 
 fn main() {
-    benchmark(|| random(), |secret: u64| secret * secret).report();
+    aes::main();
 }
