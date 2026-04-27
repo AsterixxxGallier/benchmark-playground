@@ -25,6 +25,7 @@ fn main() {
     bencher.benchmark(|| 0, |x: u64| x * 8).report_as("x * 8");
     bencher.benchmark(|| 0, |x: u64| x * x).report_as("x * x");
     bencher.benchmark(|| 0, |x: u64| x % 3).report_as("x % 3");
+    println!("{:?}", bencher.cycles(|| 0, |x: u64| x % 3));
     bencher.benchmark(|| 0, |x: u32| x.count_zeros()).report_as("x.count_zeros()");
     bencher.benchmark(|| 0, |x: u32| x.count_ones()).report_as("x.count_ones()");
     bencher.benchmark(|| 0, |x: u32| x.leading_zeros()).report_as("x.leading_zeros()");

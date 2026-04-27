@@ -131,10 +131,6 @@ impl PreciseDuration {
 }
 
 impl PreciseDuration {
-    pub(crate) const fn saturating_sub(self, other: Self) -> Self {
-        Self::from_attos(self.attos.saturating_sub(other.attos))
-    }
-
     pub(crate) const fn abs_diff(self, other: Self) -> Self {
         Self::from_attos(self.attos.abs_diff(other.attos))
     }
@@ -168,7 +164,7 @@ impl Sub for PreciseDuration {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
-        Self::from_attos(self.attos - rhs.attos)
+        Self::from_attos(self.attos.saturating_sub(rhs.attos))
     }
 }
 

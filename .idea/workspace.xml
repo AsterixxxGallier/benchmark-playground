@@ -11,13 +11,11 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e9902e67-e925-44b8-abbc-67336db7188e" name="Changes" comment="Benchmark homework code">
-      <change afterPath="$PROJECT_DIR$/src/benchmark/precise_duration.rs" afterDir="false" />
+    <list default="true" id="e9902e67-e925-44b8-abbc-67336db7188e" name="Changes" comment="Remove aes module">
+      <change afterPath="$PROJECT_DIR$/src/benchmark/interval.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/aes.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/aes.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/benchmark.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/benchmark.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/benchmark/precise_duration.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/benchmark/precise_duration.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -108,7 +106,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1777225036235</updated>
-      <workItem from="1777225037492" duration="14327000" />
+      <workItem from="1777225037492" duration="17661000" />
     </task>
     <task id="LOCAL-00001" summary="Implement pretty decent benchmarking code">
       <option name="closed" value="true" />
@@ -126,7 +124,23 @@
       <option name="project" value="LOCAL" />
       <updated>1777229816035</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Improve benchmarking module">
+      <option name="closed" value="true" />
+      <created>1777287903553</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1777287903553</updated>
+    </task>
+    <task id="LOCAL-00004" summary="Remove aes module">
+      <option name="closed" value="true" />
+      <created>1777288093911</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1777288093911</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -135,6 +149,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Implement pretty decent benchmarking code" />
     <MESSAGE value="Benchmark homework code" />
-    <option name="LAST_COMMIT_MESSAGE" value="Benchmark homework code" />
+    <MESSAGE value="Improve benchmarking module" />
+    <MESSAGE value="Remove aes module" />
+    <option name="LAST_COMMIT_MESSAGE" value="Remove aes module" />
   </component>
 </project>
