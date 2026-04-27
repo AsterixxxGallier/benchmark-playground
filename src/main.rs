@@ -5,7 +5,6 @@ use std::simd::num::SimdUint;
 use crate::benchmark::Bencher;
 
 mod benchmark;
-mod aes;
 
 fn main() {
     let bencher = Bencher::new();
@@ -49,6 +48,4 @@ fn main() {
     // assert!((benchmark(|| 0, |x: u64| x * x).min / 3).abs_diff(cycle_picos) <= 2);
     // assert!((benchmark(|| 0, |x: u64| x / 3).min / 4).abs_diff(cycle_picos) <= 2);
     // assert!((benchmark(|| 0, |x: u64| x % 3).min / 7).abs_diff(cycle_picos) <= 2);
-
-    // aes::main();
 }
