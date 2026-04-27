@@ -1,7 +1,8 @@
 #![allow(unused)]
 
+use std::time::Instant;
 use rand::random;
-use crate::benchmark::benchmark;
+use crate::benchmark::Bencher;
 
 const ITERATIONS: usize = 400_000;
 const ROUNDS: usize = 10;
@@ -268,40 +269,46 @@ fn mix_and_add_key(msg: &mut Msg, key: &Key) {
         power_cache[column][5] = power(msg[5][column], 6);
     }
 
-    unsafe {
-        let msg_0 = msg.as_mut_ptr() as *mut u128;
-        let msg_1 = msg_0.add(1);
-        let msg_2 = msg_0.add(2);
-
-        let key_0 = key.as_ptr() as *mut u128;
-        let key_1 = key_0.add(1);
-        let key_2 = key_0.add(2);
-
-        *msg_0 ^= *key_0;
-        *msg_1 ^= *key_1;
-        *msg_2 ^= *key_2;
+    for row in 0..6 {
+        msg[row] = (u64::from_ne_bytes(msg[row]) ^ u64::from_ne_bytes(key[row])).to_ne_bytes();
     }
+    // unsafe {
+    //     let msg_0 = msg.as_mut_ptr() as *mut u128;
+    //     let msg_1 = msg_0.add(1);
+    //     let msg_2 = msg_0.add(2);
+    //
+    //     let key_0 = key.as_ptr() as *mut u128;
+    //     let key_1 = key_0.add(1);
+    //     let key_2 = key_0.add(2);
+    //
+    //     *msg_0 ^= *key_0;
+    //     *msg_1 ^= *key_1;
+    //     *msg_2 ^= *key_2;
+    // }
 
     msg[6] = key[6];
 }
 
 fn add_key(msg: &mut Msg, key: &Key) {
-    unsafe {
-        let msg_0 = msg.as_mut_ptr() as *mut u128;
-        let msg_1 = msg_0.add(1);
-        let msg_2 = msg_0.add(2);
-        let msg_3 = msg_0.add(3) as *mut u64;
-
-        let key_0 = key.as_ptr() as *mut u128;
-        let key_1 = key_0.add(1);
-        let key_2 = key_0.add(2);
-        let key_3 = key_0.add(3) as *mut u64;
-
-        *msg_0 ^= *key_0;
-        *msg_1 ^= *key_1;
-        *msg_2 ^= *key_2;
-        *msg_3 ^= *key_3;
+    for row in 0..7 {
+        msg[row] = (u64::from_ne_bytes(msg[row]) ^ u64::from_ne_bytes(key[row])).to_ne_bytes();
     }
+    // unsafe {
+    //     let msg_0 = msg.as_mut_ptr() as *mut u128;
+    //     let msg_1 = msg_0.add(1);
+    //     let msg_2 = msg_0.add(2);
+    //     let msg_3 = msg_0.add(3) as *mut u64;
+    //
+    //     let key_0 = key.as_ptr() as *mut u128;
+    //     let key_1 = key_0.add(1);
+    //     let key_2 = key_0.add(2);
+    //     let key_3 = key_0.add(3) as *mut u64;
+    //
+    //     *msg_0 ^= *key_0;
+    //     *msg_1 ^= *key_1;
+    //     *msg_2 ^= *key_2;
+    //     *msg_3 ^= *key_3;
+    // }
 }
 
 #[inline]
@@ -374,34 +381,149 @@ fn encrypt(msg: &mut Msg, keys: &Keys, iterations: usize) {
     }
 }
 
+macro_rules! error {
+    ($($t:tt)*) => {
+        eprintln!($($t)*);
+        unsafe {
+            ::libc::exit(1);
+        }
+    };
+}
+
+mod stdin {
+    use core::str::Utf8Error;
+    use heapless::string::String;
+
+    pub(crate) fn read_bytes(buf: &mut [u8]) -> usize {
+        unsafe {
+            const STDIN_DESCRIPTOR: core::ffi::c_int = 0;
+            #[cfg(windows)]
+            {
+                libc::read(
+                    STDIN_DESCRIPTOR,
+                    buf.as_mut_ptr().cast(),
+                    buf.len() as core::ffi::c_uint,
+                ) as usize
+            }
+            #[cfg(unix)]
+            {
+                libc::read(STDIN_DESCRIPTOR, buf.as_mut_ptr().cast(), buf.len()) as usize
+            }
+        }
+    }
+
+    pub(crate) fn read_string<const N: usize>() -> Result<String<N>, Utf8Error> {
+        let mut buf = heapless::Vec::from_array([0; N]);
+        let read = read_bytes(&mut buf);
+        buf.truncate(read);
+        String::from_utf8(buf)
+    }
+}
+
+fn seed_zero() {
+    unsafe {
+        libc::srand(0);
+    }
+}
+
+fn read_and_seed() {
+    println!("READY");
+    let Ok(string) = stdin::read_string::<32>() else {
+        error!("bytes read from stdin could not be converted to utf8");
+    };
+    let Ok(seed) = string.trim().parse() else {
+        error!("string read from stdin could not be parsed as integer");
+    };
+
+    eprintln!("Using seed {seed}");
+
+    unsafe {
+        libc::srand(seed);
+    }
+}
+
+fn write(msg: &Msg) {
+    for row in &msg[..7] {
+        for &value in &row[..4] {
+            print!("{value:x}");
+        }
+    }
+    println!("\nDONE");
+}
+
+fn generate(keys: &mut Keys) {
+    for key in keys {
+        for row in &mut key[..7] {
+            for value in &mut row[..7] {
+                *value = (unsafe { libc::rand() } % u8::MAX as i32) as u8;
+            }
+        }
+    }
+}
+
 #[repr(align(64))]
 struct Aligned<T>(T);
 
+/*
+substitute: 50+50 loads, 50 stores = 150 ops
+shift: 50 loads, 50 stores = 100 ops
+mix prep: 50+50 loads, 50 stores = 150 ops
+mix calc: 350 loads, 350 muls, 350 adds = 1050 ops
+mix back: 50 loads, 50+50 stores = 150 ops
+total: 1600 ops per round
+10 rounds: 16k ops
+ */
+
 pub(crate) fn main() {
+    let bencher = Bencher::new();
+    
     let table: [u8; 256] = random();
-    benchmark(|| 0, |i| table[i as usize]).report_as("table_lookup");
+    bencher.benchmark(|| 0, |i| table[i as usize]).report_as("table_lookup");
 
     let key: Aligned<Key> = Aligned(random());
-    benchmark(|| Aligned(random()), |mut msg: Aligned<Msg>| {
+    bencher.benchmark(|| Aligned(random()), |mut msg: Aligned<Msg>| {
         add_key(&mut msg.0, &key.0);
         msg
     }).report_as("add_key");
 
     let key: Aligned<Key> = Aligned(random());
-    benchmark(|| Aligned(random()), |mut msg: Aligned<Msg>| {
+    bencher.benchmark(|| Aligned(random()), |mut msg: Aligned<Msg>| {
         mix_and_add_key(&mut msg.0, &key.0);
         msg
     }).report_as("mix_and_add_key");
 
     let keys: Aligned<Keys> = Aligned(random());
-    benchmark(|| Aligned(random()), |mut msg: Aligned<Msg>| {
+    bencher.benchmark(|| Aligned(random()), |mut msg: Aligned<Msg>| {
         encrypt_once(&mut msg.0, &keys.0);
         msg
     }).report_as("encrypt_once");
 
-    let keys: Aligned<Keys> = Aligned(random());
-    benchmark(|| Aligned(random()), |mut msg: Aligned<Msg>| {
+    let mut keys: Aligned<Keys> = Aligned(Default::default());
+
+    seed_zero();
+    generate(&mut keys.0);
+    bencher.benchmark(|| Aligned(MSG), |mut msg: Aligned<Msg>| {
         encrypt(&mut msg.0, &keys.0, ITERATIONS);
         msg
     }).report_as("encrypt");
+
+    /*let mut keys: Aligned<Keys> = Aligned(Default::default());
+
+    // real shit
+    read_and_seed();
+
+    let start_time = Instant::now();
+
+    generate(&mut keys.0);
+
+    let mut msg = Aligned(Default::default());
+    msg = Aligned(MSG);
+    encrypt(&mut msg.0, &keys.0, ITERATIONS);
+
+    let end_time = Instant::now();
+
+    write(&msg.0);
+
+    eprintln!("86f69b272b1ccc617e4c7fa3aa7031f1f976f0ba2a90e59f99c46cd6 expected");
+    eprintln!("took {:?}", (end_time - start_time));*/
 }
