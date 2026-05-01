@@ -1,12 +1,16 @@
 use crate::benchmark::interval::Interval;
+pub(crate) use interval::*;
 pub(crate) use precise_duration::*;
-use rand::random;
+pub(crate) use statistics::*;
+use std::cmp;
+use std::collections::BinaryHeap;
 use std::fmt::Display;
 use std::hint::black_box;
 use std::time::Instant;
 
 mod interval;
 mod precise_duration;
+mod statistics;
 
 // returns total, unadjusted picos
 fn sample<T>(samples: u32, first_t: T, mut f: impl FnMut(T) -> T) -> PreciseDuration {
@@ -28,157 +32,126 @@ fn sample<T>(samples: u32, first_t: T, mut f: impl FnMut(T) -> T) -> PreciseDura
     PreciseDuration::from(end - start)
 }
 
-#[must_use]
-pub(crate) struct BenchmarkStatistics {
-    pub(crate) outliers: usize,
-    pub(crate) int: Interval<PreciseDuration>,
-    pub(crate) min: PreciseDuration,
-    pub(crate) avg: PreciseDuration,
-    pub(crate) std: PreciseDuration,
+pub(crate) trait Sampler {
+    fn collect_samples(&self, sample: impl FnMut() -> PreciseDuration) -> Vec<PreciseDuration>;
 }
 
-impl BenchmarkStatistics {
-    fn new(mut samples: Vec<PreciseDuration>) -> Self {
-        let avg = samples.iter().sum::<PreciseDuration>() / samples.len();
+pub(crate) struct PrecisionSampler {
+    pub(crate) desired_precision: PreciseDuration,
+    pub(crate) desired_samples_within_precision: usize,
+    pub(crate) min_samples: usize,
+    pub(crate) max_samples: usize,
+    pub(crate) min_kept_samples: usize,
+    pub(crate) max_kept_samples: usize,
+}
 
-        let previous_len = samples.len();
-        samples.retain(|&duration| duration - avg <= avg / 10u32);
-
-        if samples.is_empty() {
-            panic!("no samples, something went wrong");
-        }
-
-        let outliers = previous_len - samples.len();
-
-        let int = Interval::from_iter(samples.iter().copied()).unwrap();
-        let min = *samples.iter().min().unwrap();
-        let avg = samples.iter().sum::<PreciseDuration>() / samples.len();
-        let std = (samples
-            .iter()
-            .map(|&duration| duration.abs_diff(avg).square())
-            .sum::<PreciseDuration>()
-            / (samples.len() - 1))
-            .isqrt();
-
+impl PrecisionSampler {
+    pub(crate) fn with_defaults(desired_precision: PreciseDuration) -> Self {
         Self {
-            outliers,
-            int,
-            min,
-            avg,
-            std,
+            desired_precision,
+            desired_samples_within_precision: 50,
+            min_samples: 100,
+            max_samples: 1000,
+            min_kept_samples: 50,
+            max_kept_samples: 100,
         }
     }
+}
 
-    pub(crate) fn report(&self) {
-        _ = self.outliers;
-
-        if self.avg.total_attos() < 1000 {
-            println!("min:     {:>3} as", self.min.total_attos());
-            println!("avg:     {:>3} as", self.avg.total_attos());
-            println!("std:     {:>3} as", self.std.total_attos());
-        } else if self.avg.total_femtos() < 1000 {
-            println!(
-                "min: {:>3}.{:0>3} fs",
-                self.min.total_femtos(),
-                self.min.part_attos()
-            );
-            println!(
-                "avg: {:>3}.{:0>3} fs",
-                self.avg.total_femtos(),
-                self.avg.part_attos()
-            );
-            println!(
-                "std: {:>3}.{:0>3} fs",
-                self.std.total_femtos(),
-                self.std.part_attos()
-            );
-        } else if self.avg.total_picos() < 1000 {
-            println!(
-                "min: {:>3}.{:0>3} ps",
-                self.min.total_picos(),
-                self.min.part_femtos()
-            );
-            println!(
-                "avg: {:>3}.{:0>3} ps",
-                self.avg.total_picos(),
-                self.avg.part_femtos()
-            );
-            println!(
-                "std: {:>3}.{:0>3} ps",
-                self.std.total_picos(),
-                self.std.part_femtos()
-            );
-        } else if self.avg.total_nanos() < 1000 {
-            println!(
-                "min: {:>3}.{:0>3} ns",
-                self.min.total_nanos(),
-                self.min.part_picos()
-            );
-            println!(
-                "avg: {:>3}.{:0>3} ns",
-                self.avg.total_nanos(),
-                self.avg.part_picos()
-            );
-            println!(
-                "std: {:>3}.{:0>3} ns",
-                self.std.total_nanos(),
-                self.std.part_picos()
-            );
-        } else if self.avg.total_micros() < 1000 {
-            println!(
-                "min: {:>3}.{:0>3} µs",
-                self.min.total_micros(),
-                self.min.part_nanos()
-            );
-            println!(
-                "avg: {:>3}.{:0>3} µs",
-                self.avg.total_micros(),
-                self.avg.part_nanos()
-            );
-            println!(
-                "std: {:>3}.{:0>3} µs",
-                self.std.total_micros(),
-                self.std.part_nanos()
-            );
-        } else if self.avg.total_millis() < 1000 {
-            println!(
-                "min: {:>3}.{:0>3} ms",
-                self.min.total_millis(),
-                self.min.part_micros()
-            );
-            println!(
-                "avg: {:>3}.{:0>3} ms",
-                self.avg.total_millis(),
-                self.avg.part_micros()
-            );
-            println!(
-                "std: {:>3}.{:0>3} ms",
-                self.std.total_millis(),
-                self.std.part_micros()
-            );
+fn heap_pop_while<T: Ord>(heap: &mut BinaryHeap<T>, condition: impl Fn(&T) -> bool) {
+    loop {
+        let top = heap.peek();
+        if top.is_some_and(&condition) {
+            heap.pop();
         } else {
-            println!(
-                "min: {:>3}.{:0>3} s",
-                self.min.total_seconds(),
-                self.min.part_millis()
-            );
-            println!(
-                "avg: {:>3}.{:0>3} s",
-                self.avg.total_seconds(),
-                self.avg.part_millis()
-            );
-            println!(
-                "std: {:>3}.{:0>3} s",
-                self.std.total_seconds(),
-                self.std.part_millis()
-            );
+            break;
         }
     }
+}
 
-    pub(crate) fn report_as(&self, name: impl Display) {
-        println!("# {name}");
-        self.report();
-        println!();
+impl Sampler for PrecisionSampler {
+    fn collect_samples(&self, mut sample: impl FnMut() -> PreciseDuration) -> Vec<PreciseDuration> {
+        assert!(0 < self.desired_samples_within_precision);
+        assert!(0 < self.min_samples);
+        assert!(self.desired_samples_within_precision <= self.min_kept_samples);
+        assert!(self.min_samples <= self.max_samples);
+        assert!(self.min_kept_samples <= self.max_kept_samples);
+
+        let first_sample = sample();
+
+        let mut min = first_sample;
+
+        let mut precision_bounded_heap =
+            BinaryHeap::with_capacity(self.desired_samples_within_precision + 1);
+        let mut number_bounded_heap = BinaryHeap::with_capacity(self.max_kept_samples + 1);
+
+        precision_bounded_heap.push(first_sample);
+        number_bounded_heap.push(first_sample);
+
+        for _ in 1..self.min_samples {
+            let sample = sample();
+            precision_bounded_heap.push(sample);
+            number_bounded_heap.push(sample);
+            if number_bounded_heap.len() > self.max_kept_samples {
+                number_bounded_heap.pop();
+            }
+            min = cmp::min(min, sample);
+        }
+
+        heap_pop_while(&mut precision_bounded_heap, |value| {
+            *value > min + self.desired_precision
+        });
+
+        let mut samples_collected = self.min_samples;
+
+        while precision_bounded_heap.len() < self.desired_samples_within_precision
+            && samples_collected < self.max_samples
+        {
+            let sample = sample();
+            samples_collected += 1;
+            min = cmp::min(min, sample);
+
+            precision_bounded_heap.push(sample);
+            number_bounded_heap.push(sample);
+            if number_bounded_heap.len() > self.max_kept_samples {
+                number_bounded_heap.pop();
+            }
+
+            heap_pop_while(&mut precision_bounded_heap, |value| {
+                *value > min + self.desired_precision
+            });
+        }
+
+        if precision_bounded_heap.len() >= self.min_kept_samples {
+            let mut vec = precision_bounded_heap.into_sorted_vec();
+            vec.truncate(self.max_kept_samples);
+            vec
+        } else {
+            number_bounded_heap.into_sorted_vec()
+        }
+    }
+}
+
+pub(crate) struct FixedCountSampler {
+    pub(crate) samples: usize,
+    pub(crate) kept_samples: usize,
+}
+
+impl FixedCountSampler {
+    pub(crate) fn with_presets(samples: usize) -> Self {
+        Self { samples, kept_samples: (samples / 10).max(10) }
+    }
+}
+
+impl Sampler for FixedCountSampler {
+    fn collect_samples(&self, mut sample: impl FnMut() -> PreciseDuration) -> Vec<PreciseDuration> {
+        assert!(0 < self.samples);
+        assert!(self.kept_samples <= self.samples);
+
+        let mut samples: Vec<_> = (0..self.samples).map(move |_| sample()).collect();
+        samples.sort();
+        samples.truncate(self.kept_samples);
+        samples
     }
 }
 
@@ -194,7 +167,13 @@ impl Bencher {
             cycle: Interval::point(PreciseDuration::zero()),
         };
 
-        let overhead = zero_bencher.benchmark(|| random(), |value: u64| value).int;
+        let overhead = zero_bencher
+            .bench(
+                PrecisionSampler::with_defaults(PreciseDuration::from_picos(2)),
+                || 0,
+                |value: u64| value,
+            )
+            .interval;
 
         let overhead_bencher = Self {
             overhead,
@@ -202,48 +181,61 @@ impl Bencher {
         };
 
         let cycle = overhead_bencher
-            .benchmark(|| random(), |value: u64| value + 1)
-            .int;
+            .bench(
+                PrecisionSampler::with_defaults(PreciseDuration::from_picos(2)),
+                || 0,
+                |value: u64| value + 1,
+            )
+            .interval;
 
         Self { overhead, cycle }
     }
 
-    fn benchmark_with_counts<T>(
+    pub(crate) fn bench<T>(
         &self,
-        benchmarks: u32,
-        samples: u32,
+        sampler: impl Sampler,
         mut t: impl FnMut() -> T,
         mut f: impl FnMut(T) -> T,
-    ) -> BenchmarkStatistics {
-        let samples: Vec<_> = (0..benchmarks)
-            .map(move |_| sample(samples, t(), &mut f) / samples as u128 - self.overhead.min)
-            .collect();
-
+    ) -> BenchmarkStatistics<PreciseDuration> {
+        let iterations_per_sample =
+            choose_iterations_per_sample(PREFERRED_SAMPLE_DURATION, &mut t, &mut f);
+        let sample = || self.adjusted_sample(iterations_per_sample, &mut t, &mut f);
+        let samples = sampler.collect_samples(sample);
         BenchmarkStatistics::new(samples)
     }
 
-    pub(crate) fn benchmark<T>(
+    fn adjusted_sample<T>(
         &self,
-        mut t: impl FnMut() -> T,
-        mut f: impl FnMut(T) -> T,
-    ) -> BenchmarkStatistics {
-        let benchmarks = PREFERRED_BENCHMARKS;
-        let samples = choose_sample_count(PREFERRED_SAMPLE_DURATION, &mut t, &mut f);
-
-        self.benchmark_with_counts(benchmarks, samples, t, f)
+        iterations: u32,
+        t: impl FnOnce() -> T,
+        f: impl FnMut(T) -> T,
+    ) -> PreciseDuration {
+        sample(iterations, t(), f) / iterations - self.overhead.min
     }
 
-    pub(crate) fn cycles<T>(&self, t: impl FnMut() -> T, f: impl FnMut(T) -> T) -> Interval<f64> {
+    /*pub(crate) fn cycles<T>(&self, t: impl FnMut() -> T, f: impl FnMut(T) -> T) -> Interval<f64> {
         let stats = self.benchmark(t, f);
-        stats.int.map(PreciseDuration::total_attos_f64)
+        stats.interval.map(PreciseDuration::total_attos_f64)
             / self.cycle.map(PreciseDuration::total_attos_f64)
     }
+
+    pub(crate) fn cycles_precise<T>(
+        &self,
+        precision: PreciseDuration,
+        samples_within_precision: usize,
+        t: impl FnMut() -> T,
+        f: impl FnMut(T) -> T,
+    ) -> Interval<f64> {
+        let stats = self.benchmark_precise(precision, samples_within_precision, t, f);
+        stats.interval.map(PreciseDuration::total_attos_f64)
+            / self.cycle.map(PreciseDuration::total_attos_f64)
+    }*/
 }
 
 const PREFERRED_BENCHMARKS: u32 = 1000;
 const PREFERRED_SAMPLE_DURATION: PreciseDuration = PreciseDuration::from_micros(100);
 
-fn choose_sample_count<T>(
+fn choose_iterations_per_sample<T>(
     preferred_duration: PreciseDuration,
     mut t: impl FnMut() -> T,
     mut f: impl FnMut(T) -> T,
