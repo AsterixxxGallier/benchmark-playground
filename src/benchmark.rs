@@ -138,7 +138,7 @@ pub(crate) struct FixedCountSampler {
 }
 
 impl FixedCountSampler {
-    pub(crate) fn with_presets(samples: usize) -> Self {
+    pub(crate) fn with_defaults(samples: usize) -> Self {
         Self { samples, kept_samples: (samples / 10).max(10) }
     }
 }
@@ -155,81 +155,16 @@ impl Sampler for FixedCountSampler {
     }
 }
 
-pub(crate) struct Bencher {
-    overhead: Interval<PreciseDuration>,
-    cycle: Interval<PreciseDuration>,
-}
-
-impl Bencher {
-    pub(crate) fn new() -> Self {
-        let zero_bencher = Self {
-            overhead: Interval::point(PreciseDuration::zero()),
-            cycle: Interval::point(PreciseDuration::zero()),
-        };
-
-        let overhead = zero_bencher
-            .bench(
-                PrecisionSampler::with_defaults(PreciseDuration::from_picos(2)),
-                || 0,
-                |value: u64| value,
-            )
-            .interval;
-
-        let overhead_bencher = Self {
-            overhead,
-            cycle: Interval::point(PreciseDuration::zero()),
-        };
-
-        let cycle = overhead_bencher
-            .bench(
-                PrecisionSampler::with_defaults(PreciseDuration::from_picos(2)),
-                || 0,
-                |value: u64| value + 1,
-            )
-            .interval;
-
-        Self { overhead, cycle }
-    }
-
-    pub(crate) fn bench<T>(
-        &self,
-        sampler: impl Sampler,
-        mut t: impl FnMut() -> T,
-        mut f: impl FnMut(T) -> T,
-    ) -> BenchmarkStatistics<PreciseDuration> {
-        let iterations_per_sample =
-            choose_iterations_per_sample(PREFERRED_SAMPLE_DURATION, &mut t, &mut f);
-        let sample = || self.adjusted_sample(iterations_per_sample, &mut t, &mut f);
-        let samples = sampler.collect_samples(sample);
-        BenchmarkStatistics::new(samples)
-    }
-
-    fn adjusted_sample<T>(
-        &self,
-        iterations: u32,
-        t: impl FnOnce() -> T,
-        f: impl FnMut(T) -> T,
-    ) -> PreciseDuration {
-        sample(iterations, t(), f) / iterations - self.overhead.min
-    }
-
-    /*pub(crate) fn cycles<T>(&self, t: impl FnMut() -> T, f: impl FnMut(T) -> T) -> Interval<f64> {
-        let stats = self.benchmark(t, f);
-        stats.interval.map(PreciseDuration::total_attos_f64)
-            / self.cycle.map(PreciseDuration::total_attos_f64)
-    }
-
-    pub(crate) fn cycles_precise<T>(
-        &self,
-        precision: PreciseDuration,
-        samples_within_precision: usize,
-        t: impl FnMut() -> T,
-        f: impl FnMut(T) -> T,
-    ) -> Interval<f64> {
-        let stats = self.benchmark_precise(precision, samples_within_precision, t, f);
-        stats.interval.map(PreciseDuration::total_attos_f64)
-            / self.cycle.map(PreciseDuration::total_attos_f64)
-    }*/
+pub(crate) fn bench<T>(
+    sampler: &impl Sampler,
+    mut t: impl FnMut() -> T,
+    mut f: impl FnMut(T) -> T,
+) -> BenchmarkStatistics<PreciseDuration> {
+    let iterations =
+        choose_iterations_per_sample(PREFERRED_SAMPLE_DURATION, &mut t, &mut f);
+    let sample = || sample(iterations, t(), &mut f) / iterations;
+    let samples = sampler.collect_samples(sample);
+    BenchmarkStatistics::new(samples)
 }
 
 const PREFERRED_BENCHMARKS: u32 = 1000;
@@ -240,21 +175,17 @@ fn choose_iterations_per_sample<T>(
     mut t: impl FnMut() -> T,
     mut f: impl FnMut(T) -> T,
 ) -> u32 {
-    let mut samples = 1;
+    let mut iterations = 1;
 
     for _ in 0..10 {
-        let duration = sample(samples, t(), &mut f);
+        let duration = sample(iterations, t(), &mut f);
         let scale = (preferred_duration.total_attos_f64() / duration.total_attos_f64()).min(1000.0);
-        if samples as f64 * scale < 5.0 {
-            samples = 5;
-            println!(
-                "estimated time to collect samples: {:?}",
-                duration * samples * 2u32 * PREFERRED_BENCHMARKS / 1000u32
-            );
+        if iterations as f64 * scale < 5.0 {
+            iterations = 5;
             break;
         }
-        samples = (samples as f64 * scale) as u32;
+        iterations = (iterations as f64 * scale) as u32;
     }
 
-    samples
+    iterations
 }

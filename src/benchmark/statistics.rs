@@ -1,10 +1,9 @@
-use std::fmt::Display;
 use crate::benchmark::interval::Interval;
 use crate::benchmark::PreciseDuration;
+use std::fmt::Display;
 
 #[must_use]
 pub(crate) struct BenchmarkStatistics<T: PartialOrd> {
-    pub(crate) outliers: usize,
     pub(crate) interval: Interval<T>,
     pub(crate) average: T,
     pub(crate) median: T,
@@ -13,17 +12,9 @@ pub(crate) struct BenchmarkStatistics<T: PartialOrd> {
 
 impl BenchmarkStatistics<PreciseDuration> {
     pub(crate) fn new(mut samples: Vec<PreciseDuration>) -> Self {
+        assert!(!samples.is_empty(), "no samples, something went wrong");
+
         let avg = samples.iter().sum::<PreciseDuration>() / samples.len();
-
-        let previous_len = samples.len();
-        samples.retain(|&duration| duration - avg <= avg / 10u32);
-
-        if samples.is_empty() {
-            panic!("no samples, something went wrong");
-        }
-
-        let outliers = previous_len - samples.len();
-
         let interval = Interval::from_iter(samples.iter().copied()).unwrap();
         let average = samples.iter().sum::<PreciseDuration>() / samples.len();
         let median = samples[samples.len() / 2];
@@ -35,7 +26,6 @@ impl BenchmarkStatistics<PreciseDuration> {
             .isqrt();
 
         Self {
-            outliers,
             interval,
             average,
             median,
@@ -43,14 +33,36 @@ impl BenchmarkStatistics<PreciseDuration> {
         }
     }
 
-    pub(crate) fn report(&self) {
-        _ = self.outliers;
+    pub(crate) fn with_baseline(self, baseline: &Self) -> Self {
+        Self {
+            interval: self.interval - baseline.interval,
+            average: self.average - baseline.average,
+            median: self.median - baseline.median,
+            standard_deviation: (self.standard_deviation.square()
+                + baseline.standard_deviation.square())
+            .isqrt(),
+        }
+    }
 
-        if self.average.total_attos() < 1000 {
+    pub(crate) fn with_unit(self, unit: PreciseDuration) -> BenchmarkStatistics<f64> {
+        BenchmarkStatistics {
+            interval: self
+                .interval
+                .map(|duration| duration.total_attos_f64() / unit.total_attos_f64()),
+            average: self.average.total_attos_f64() / unit.total_attos_f64(),
+            median: self.median.total_attos_f64() / unit.total_attos_f64(),
+            standard_deviation: self.standard_deviation.total_attos_f64() / unit.total_attos_f64(),
+        }
+    }
+
+    pub(crate) fn report(&self) {
+        let biggest_value = self.average.max(self.standard_deviation);
+
+        if biggest_value.total_attos() < 1000 {
             println!("min:     {:>3} as", self.interval.min.total_attos());
             println!("avg:     {:>3} as", self.average.total_attos());
             println!("std:     {:>3} as", self.standard_deviation.total_attos());
-        } else if self.average.total_femtos() < 1000 {
+        } else if biggest_value.total_femtos() < 1000 {
             println!(
                 "min: {:>3}.{:0>3} fs",
                 self.interval.min.total_femtos(),
@@ -66,7 +78,7 @@ impl BenchmarkStatistics<PreciseDuration> {
                 self.standard_deviation.total_femtos(),
                 self.standard_deviation.part_attos()
             );
-        } else if self.average.total_picos() < 1000 {
+        } else if biggest_value.total_picos() < 1000 {
             println!(
                 "min: {:>3}.{:0>3} ps",
                 self.interval.min.total_picos(),
@@ -82,7 +94,7 @@ impl BenchmarkStatistics<PreciseDuration> {
                 self.standard_deviation.total_picos(),
                 self.standard_deviation.part_femtos()
             );
-        } else if self.average.total_nanos() < 1000 {
+        } else if biggest_value.total_nanos() < 1000 {
             println!(
                 "min: {:>3}.{:0>3} ns",
                 self.interval.min.total_nanos(),
@@ -98,7 +110,7 @@ impl BenchmarkStatistics<PreciseDuration> {
                 self.standard_deviation.total_nanos(),
                 self.standard_deviation.part_picos()
             );
-        } else if self.average.total_micros() < 1000 {
+        } else if biggest_value.total_micros() < 1000 {
             println!(
                 "min: {:>3}.{:0>3} µs",
                 self.interval.min.total_micros(),
@@ -114,7 +126,7 @@ impl BenchmarkStatistics<PreciseDuration> {
                 self.standard_deviation.total_micros(),
                 self.standard_deviation.part_nanos()
             );
-        } else if self.average.total_millis() < 1000 {
+        } else if biggest_value.total_millis() < 1000 {
             println!(
                 "min: {:>3}.{:0>3} ms",
                 self.interval.min.total_millis(),
@@ -148,6 +160,20 @@ impl BenchmarkStatistics<PreciseDuration> {
             );
         }
 
+        println!();
+    }
+
+    pub(crate) fn report_as(&self, name: impl Display) {
+        println!("# {name}");
+        self.report();
+    }
+}
+
+impl BenchmarkStatistics<f64> {
+    pub(crate) fn report(&self) {
+        println!("min: {:>7.3}", self.interval.min);
+        println!("avg: {:>7.3}", self.average);
+        println!("std: {:>7.3}", self.standard_deviation);
         println!();
     }
 

@@ -1,27 +1,74 @@
 #![allow(unused)]
 #![feature(portable_simd)]
 
-use crate::benchmark::{Bencher, FixedCountSampler, PreciseDuration, PrecisionSampler};
-use std::simd::num::SimdUint;
+use crate::benchmark::{bench, PreciseDuration, PrecisionSampler};
 use rand::random;
+use std::simd::num::SimdUint;
+use std::simd::Simd;
 
 mod benchmark;
 
 fn main() {
-    let bencher = Bencher::new();
+    let sampler = PrecisionSampler::with_defaults(PreciseDuration::zero());
+    let baseline = bench(&sampler, || 0, |x| x);
 
-    bencher.bench(PrecisionSampler::with_defaults(PreciseDuration::from_picos(5)), || 0, |x: u64| 0).report();
-    bencher.bench(PrecisionSampler::with_defaults(PreciseDuration::from_picos(5)), || 0, |x: u64| x).report();
-    bencher.bench(PrecisionSampler::with_defaults(PreciseDuration::from_picos(5)), || 0, |x: u64| x + 1).report();
-    bencher.bench(PrecisionSampler::with_defaults(PreciseDuration::from_picos(5)), || 0, |x: u64| x % 3).report();
-    bencher.bench(PrecisionSampler::with_defaults(PreciseDuration::from_nanos(5)), || random(), |mut x: [u64; 200]| {
-        x.sort();
-        random()
-    }).report();
-    bencher.bench(PrecisionSampler::with_defaults(PreciseDuration::from_nanos(5)), || random(), |mut x: [u64; 200]| {
-        x.sort_unstable();
-        random()
-    }).report();
+    baseline.report_as("baseline");
+
+    let cycle = bench(&sampler, || 0, |x| x + 1).with_baseline(&baseline);
+
+    cycle.report_as("cycle");
+
+    let cycle = cycle.average;
+
+    let sampler = PrecisionSampler::with_defaults(PreciseDuration::from_picos(5));
+
+    let scalar_mul = bench(&sampler, || 12341234, |x: u64| x ^ 151515)
+        .with_baseline(&baseline)
+        .average;
+
+    loop {
+        const N: usize = 64;
+
+        bench(&sampler, || Simd::splat(12341234), |x: Simd<u64, N>| x ^ Simd::splat(151515))
+            .with_baseline(&baseline)
+            .with_unit(scalar_mul * N)
+            .report();
+    }
+
+    bench(&sampler, || 0, |x: u64| 0)
+        .with_baseline(&baseline)
+        .report();
+    bench(&sampler, || 0, |x: u64| x)
+        .with_baseline(&baseline)
+        .report();
+    bench(&sampler, || 0, |x: u64| x + 1)
+        .with_baseline(&baseline)
+        .report();
+    bench(&sampler, || 0, |x: u64| x % 3)
+        .with_baseline(&baseline)
+        .report();
+
+    let sampler = PrecisionSampler::with_defaults(PreciseDuration::from_nanos(5));
+    bench(
+        &sampler,
+        || random(),
+        |mut x: [u64; 200]| {
+            x.sort();
+            random()
+        },
+    )
+    .with_baseline(&baseline)
+    .report();
+    bench(
+        &sampler,
+        || random(),
+        |mut x: [u64; 200]| {
+            x.sort_unstable();
+            random()
+        },
+    )
+    .with_baseline(&baseline)
+    .report();
     // bencher
     //     .benchmark_precise(
     //         PreciseDuration::from_femtos(1000),
