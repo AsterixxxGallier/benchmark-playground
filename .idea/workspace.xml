@@ -12,8 +12,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e9902e67-e925-44b8-abbc-67336db7188e" name="Changes" comment="Changes">
+      <change afterPath="$PROJECT_DIR$/src/benchmark/result.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/benchmark.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/benchmark.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/benchmark/precise_duration.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/benchmark/precise_duration.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/benchmark/statistics.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/benchmark/statistics.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
     </list>
@@ -26,6 +28,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "AsterixxxGallier"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/AsterixxxGallier/benchmark-playground.git",
+    "accountId": "297a52f2-0949-4ac7-8f0c-35da2c534714"
+  }
+}]]></component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="qsjh0YZz" />
   </component>
@@ -92,7 +106,7 @@
       <updated>1777225036235</updated>
       <workItem from="1777225037492" duration="28961000" />
       <workItem from="1777324275466" duration="4530000" />
-      <workItem from="1777637778255" duration="12242000" />
+      <workItem from="1777637778255" duration="14905000" />
     </task>
     <task id="LOCAL-00001" summary="Implement pretty decent benchmarking code">
       <option name="closed" value="true" />
@@ -142,7 +156,15 @@
       <option name="project" value="LOCAL" />
       <updated>1777637971765</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="Changes">
+      <option name="closed" value="true" />
+      <created>1777751199553</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1777751199553</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

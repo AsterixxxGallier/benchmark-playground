@@ -1,5 +1,5 @@
 use crate::benchmark::interval::Interval;
-use crate::benchmark::PreciseDuration;
+use crate::benchmark::{BenchmarkResult, PreciseDuration};
 use std::fmt::Display;
 
 #[must_use]
@@ -11,7 +11,9 @@ pub(crate) struct BenchmarkStatistics<T: PartialOrd> {
 }
 
 impl BenchmarkStatistics<PreciseDuration> {
-    pub(crate) fn new(mut samples: Vec<PreciseDuration>) -> Self {
+    pub(crate) fn new(results: &BenchmarkResult<PreciseDuration>) -> Self {
+        let samples = &results.samples;
+
         assert!(!samples.is_empty(), "no samples, something went wrong");
 
         let avg = samples.iter().sum::<PreciseDuration>() / samples.len();
@@ -33,29 +35,7 @@ impl BenchmarkStatistics<PreciseDuration> {
         }
     }
 
-    pub(crate) fn with_baseline(self, baseline: &Self) -> Self {
-        Self {
-            interval: self.interval - baseline.interval,
-            average: self.average - baseline.average,
-            median: self.median - baseline.median,
-            standard_deviation: (self.standard_deviation.square()
-                + baseline.standard_deviation.square())
-            .isqrt(),
-        }
-    }
-
-    pub(crate) fn with_unit(self, unit: PreciseDuration) -> BenchmarkStatistics<f64> {
-        BenchmarkStatistics {
-            interval: self
-                .interval
-                .map(|duration| duration.total_attos_f64() / unit.total_attos_f64()),
-            average: self.average.total_attos_f64() / unit.total_attos_f64(),
-            median: self.median.total_attos_f64() / unit.total_attos_f64(),
-            standard_deviation: self.standard_deviation.total_attos_f64() / unit.total_attos_f64(),
-        }
-    }
-
-    pub(crate) fn report(&self) {
+    pub(crate) fn report(&self) -> &Self {
         let biggest_value = self.average.max(self.standard_deviation);
 
         if biggest_value.total_attos() < 1000 {
@@ -161,24 +141,53 @@ impl BenchmarkStatistics<PreciseDuration> {
         }
 
         println!();
+
+        self
     }
 
-    pub(crate) fn report_as(&self, name: impl Display) {
+    pub(crate) fn report_as(&self, name: impl Display) -> &Self {
         println!("# {name}");
         self.report();
+        self
     }
 }
 
 impl BenchmarkStatistics<f64> {
-    pub(crate) fn report(&self) {
+    pub(crate) fn new(results: &BenchmarkResult<f64>) -> Self {
+        let samples = &results.samples;
+
+        assert!(!samples.is_empty(), "no samples, something went wrong");
+
+        let avg = samples.iter().sum::<f64>() / samples.len() as f64;
+        let interval = Interval::from_iter(samples.iter().copied()).unwrap();
+        let average = samples.iter().sum::<f64>() / samples.len() as f64;
+        let median = samples[samples.len() / 2];
+        let standard_deviation = (samples
+            .iter()
+            .map(|&duration| (duration - average) * (duration - average))
+            .sum::<f64>()
+            / (samples.len() - 1) as f64)
+            .sqrt();
+
+        Self {
+            interval,
+            average,
+            median,
+            standard_deviation,
+        }
+    }
+
+    pub(crate) fn report(&self) -> &Self {
         println!("min: {:>7.3}", self.interval.min);
         println!("avg: {:>7.3}", self.average);
         println!("std: {:>7.3}", self.standard_deviation);
         println!();
+        self
     }
 
-    pub(crate) fn report_as(&self, name: impl Display) {
+    pub(crate) fn report_as(&self, name: impl Display) -> &Self {
         println!("# {name}");
         self.report();
+        self
     }
 }

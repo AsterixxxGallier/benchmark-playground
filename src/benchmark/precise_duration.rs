@@ -1,5 +1,5 @@
 use std::iter::Sum;
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, AddAssign, Div, Mul, Sub, SubAssign};
 use std::time::Duration;
 
 const ATTOS_PER_FEMTO: u128 = 1_000;
@@ -165,6 +165,18 @@ impl Sub for PreciseDuration {
 
     fn sub(self, rhs: Self) -> Self {
         Self::from_attos(self.attos.saturating_sub(rhs.attos))
+    }
+}
+
+impl AddAssign for PreciseDuration {
+    fn add_assign(&mut self, rhs: Self) {
+        self.attos += rhs.attos;
+    }
+}
+
+impl SubAssign for PreciseDuration {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.attos = self.attos.saturating_sub(rhs.attos);
     }
 }
 

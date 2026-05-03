@@ -1,7 +1,5 @@
-use crate::benchmark::interval::Interval;
-pub(crate) use interval::*;
 pub(crate) use precise_duration::*;
-pub(crate) use statistics::*;
+pub(crate) use result::*;
 use std::cmp;
 use std::collections::BinaryHeap;
 use std::fmt::Display;
@@ -10,6 +8,7 @@ use std::time::Instant;
 
 mod interval;
 mod precise_duration;
+mod result;
 mod statistics;
 
 // returns total, unadjusted picos
@@ -139,7 +138,10 @@ pub(crate) struct FixedCountSampler {
 
 impl FixedCountSampler {
     pub(crate) fn with_defaults(samples: usize) -> Self {
-        Self { samples, kept_samples: (samples / 10).max(10) }
+        Self {
+            samples,
+            kept_samples: (samples / 10).max(10),
+        }
     }
 }
 
@@ -159,12 +161,11 @@ pub(crate) fn bench<T>(
     sampler: &impl Sampler,
     mut t: impl FnMut() -> T,
     mut f: impl FnMut(T) -> T,
-) -> BenchmarkStatistics<PreciseDuration> {
-    let iterations =
-        choose_iterations_per_sample(PREFERRED_SAMPLE_DURATION, &mut t, &mut f);
+) -> BenchmarkResult<PreciseDuration> {
+    let iterations = choose_iterations_per_sample(PREFERRED_SAMPLE_DURATION, &mut t, &mut f);
     let sample = || sample(iterations, t(), &mut f) / iterations;
     let samples = sampler.collect_samples(sample);
-    BenchmarkStatistics::new(samples)
+    BenchmarkResult { samples }
 }
 
 const PREFERRED_BENCHMARKS: u32 = 1000;
