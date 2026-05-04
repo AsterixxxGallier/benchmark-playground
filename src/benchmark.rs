@@ -168,7 +168,6 @@ pub(crate) fn bench<T>(
     BenchmarkResult { samples }
 }
 
-const PREFERRED_BENCHMARKS: u32 = 1000;
 const PREFERRED_SAMPLE_DURATION: PreciseDuration = PreciseDuration::from_micros(100);
 
 fn choose_iterations_per_sample<T>(
@@ -183,9 +182,9 @@ fn choose_iterations_per_sample<T>(
         let scale = (preferred_duration.total_attos_f64() / duration.total_attos_f64()).min(1000.0);
         if iterations as f64 * scale < 5.0 {
             iterations = 5;
-            break;
+        } else {
+            iterations = (iterations as f64 * scale) as u32;
         }
-        iterations = (iterations as f64 * scale) as u32;
     }
 
     iterations
